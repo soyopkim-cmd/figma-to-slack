@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 16px; }
+h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.section { margin-bottom: 14px; }
+label { display: block; font-weight: 500; margin-bottom: 5px; color: #444; }
+input, select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid #ddd;
+  border-radius: 6px; font-size: 13px; outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: #18a0fb; }
+textarea { resize: vertical; min-height: 60px; }
+.btn {
+  width: 100%; padding: 10px; border: none; border-radius: 6px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn-primary { background: #18a0fb; color: #fff; margin-bottom: 8px; }
+.btn-primary:hover { background: #0d8de3; }
+.btn-primary:disabled { background: #aad4f5; cursor: not-allowed; }
+.status { padding: 9px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+.info { background: #e8f4fd; color: #0d6efd; }
+.success { background: #d4edda; color: #155724; }
+.error { background: #f8d7da; color: #721c24; }
+hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+.url-section { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+.url-section.has-url { background: #d1fae5; border-color: #6ee7b7; }
+.url-hint { font-size: 11px; color: #888; margin-top: 4px; }
+.url-saved { color: #059669; font-size: 11px; margin-top: 4px; display: none; }
+.frame-list { background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; padding: 8px; margin-bottom: 14px; max-height: 120px; overflow-y: auto; }
+.frame-item { padding: 4px 8px; font-size: 12px; color: #666; }
+.frame-item:before { content: "• "; color: #999; }
+</style>
+</head>
+<body>
+
+<h2>Figma to Slack</h2>
+
+<div id="status" style="display:none" class="status"></div>
+
+<!-- 파일 URL -->
+<div class="url-section" id="url-section">
+  <label>피그마 파일 URL <span id="url-saved" style="font-weight:400;color:#059669;font-size:11px"></span></label>
+  <input type="text" id="file-url" readonly style="background:#f5f5f5;cursor:default;color:#333">
+  <div class="url-hint" style="margin-top:6px;display:flex;gap:6px;align-items:center">
+    <span style="white-space:nowrap;color:#666">파일 키:</span>
+    <input type="text" id="file-key-input" placeholder="eAVUdjXGy... (URL에서 /design/ 다음 부분)" style="flex:1;padding:4px 7px;font-size:11px;border:1px solid #ddd;border-radius:4px">
+    <button id="file-key-save-btn" onclick="saveFileKey()" style="width:auto;padding:4px 10px;font-size:11px;background:#18a0fb;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">저장</button>
+  </div>
+  <div id="file-key-hint" class="url-hint" style="margin-top:4px">프레임·섹션 선택하면 URL이 자동으로 바뀌어요</div>
+</div>
+
+<div class="section">
+  <label>선택된 항목</label>
+  <select id="item-select">
+    <option value="">-- 피그마에서 선택해주세요 --</option>
+  </select>
+</div>
+
+<div id="frame-preview" style="display:none" class="section">
+  <label>포함된 프레임</label>
+  <div class="frame-list" id="frame-list"></div>
+</div>
+
+<hr>
+
+<!-- 노션 연동 섹션 -->
+<div class="section">
+  <label>📋 노션 디자인 요청 항목 <span id="notion-loading" style="color:#aaa;font-weight:400;font-size:11px">불러오는 중...</span></label>
+  <select id="notion-select" onchange="onNotionSelect()">
+    <option value="">-- 해당 없음 (노션 업데이트 안 함) --</option>
+  </select>
+  <div id="notion-thread-status" class="url-hint" style="display:none"></div>
+</div>
+
+<hr>
+
+<div class="section">
+  <label>슬랙 채널</label>
+  <select id="channel-select">
+    <option value="C0A8WKD7X19">#1_사업팀_디자인요청</option>
+  </select>
+</div>
+
+<div class="section">
+  <label>스레드 댓글로 공유 (선택)</label>
+  <input type="text" id="thread-url" placeholder="https://zep-us.slack.com/archives/C0A8WKD7X19/p1234567890123456">
+  <div class="url-hint">노션 항목 선택 시 자동 입력 · 직접 붙여넣기도 가능</div>
+</div>
+
+<div class="section">
+  <label>메시지 (선택)</label>
+  <textarea id="message" placeholder="함께 남길 메시지..."></textarea>
+</div>
+
+<button class="btn btn-primary" id="share-btn" onclick="share()">슬랙에 공유하기</button>
+
+<script>
+var fileUrl = '';
+var currentItems = [];
+var selectedId = null;
+var notionEntries = [];
+var pendingNodeId = null;
+var storedFileKey = null;
+
+function updateFileUrl() {
+  if (!storedFileKey || !pendingNodeId) {
+    document.getElementById('file-url').value = '';
+    return;
+  }
+  var full = 'https://www.figma.com/design/' + storedFileKey + '?node-id=' + pendingNodeId;
+  fileUrl = 'https://www.figma.com/design/' + storedFileKey;
+  document.getElementById('file-url').value = full;
+  document.getElementById('url-section').classList.add('has-url');
+  document.getElementById('url-saved').textContent = '✓ 자동 입력됨';
+}
+
+function saveFileKey() {
+  var raw = document.getElementById('file-key-input').value.trim();
+  // 전체 URL 붙여넣기도 허용
+  var m = raw.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
+  var key = m ? m[1] : raw.replace(/[^a-zA-Z0-9]/g, '');
+  if (!key) { showStatus('파일 키를 확인해주세요', 'error'); return; }
+  storedFileKey = key;
+  parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: key } }, '*');
+  document.getElementById('file-key-input').value = key;
+  document.getElementById('file-key-hint').textContent = '저장됨: ' + key;
+  document.getElementById('file-key-hint').style.color = '#059669';
+  updateFileUrl();
+  showStatus('파일 키 저장 완료! 이제 섹션 클릭 시 URL이 자동으로 바뀌어요', 'success');
+}
+var selectedNotionId = null;
+
+// ── 노션 항목 로드 ──────────────────────────────────────────────
+function loadNotionEntries() {
+  fetch('http://127.0.0.1:18790/notion-entries')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      document.getElementById('notion-loading').textContent = '';
+      if (!data.ok) return;
+      notionEntries = data.entries || [];
+      var sel = document.getElementById('notion-select');
+      sel.innerHTML = '<option value="">-- 해당 없음 (노션 업데이트 안 함) --</option>';
+      notionEntries.forEach(function(e) {
+        var opt = document.createElement('option');
+        opt.value = e.id;
+        var meta = [e.team, e.deadline ? '마감 ' + e.deadline : ''].filter(Boolean).join(' · ');
+        opt.textContent = e.title + (meta ? '  (' + meta + ')' : '');
+        sel.appendChild(opt);
+      });
+    })
+    .catch(function() {
+      document.getElementById('notion-loading').textContent = '(서버 미실행)';
+    });
+}
+
+// 노션 항목 선택 시 슬랙 스레드 자동 검색
+function onNotionSelect() {
+  selectedNotionId = document.getElementById('notion-select').value || null;
+  if (!selectedNotionId) {
+    document.getElementById('notion-thread-status').style.display = 'none';
+    return;
+  }
+  var statusEl = document.getElementById('notion-thread-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '🔍 슬랙 스레드 검색 중...';
+  document.getElementById('thread-url').value = '';
+
+  fetch('http://127.0.0.1:18790/find-thread?pageId=' + encodeURIComponent(selectedNotionId))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.threadUrl) {
+        document.getElementById('thread-url').value = data.threadUrl;
+        statusEl.textContent = '✅ 스레드 자동 입력 완료';
+        statusEl.style.color = '#059669';
+      } else {
+        statusEl.textContent = '⚠️ 스레드 없음 (직접 입력 가능)';
+        statusEl.style.color = '#d97706';
+      }
+    })
+    .catch(function() {
+      statusEl.textContent = '검색 실패';
+    });
+}
+
+// 채널 목록 로드
+function loadChannels() {
+  fetch('http://127.0.0.1:18790/channels')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error);
+      var sel = document.getElementById('channel-select');
+      sel.innerHTML = '';
+      for (var i = 0; i < data.channels.length; i++) {
+        var ch = data.channels[i];
+        var opt = document.createElement('option');
+        opt.value = ch.id;
+        opt.textContent = '#' + ch.name;
+        if (ch.id === 'C0A8WKD7X19') opt.selected = true;
+        sel.appendChild(opt);
+      }
+    });
+}
+
+
+loadChannels();
+loadNotionEntries();
+
+window.onmessage = function(event) {
+  var msg = event.data.pluginMessage;
+  if (!msg) return;
+
+  if (msg.type === 'stored-filekey') {
+    if (msg.fileKey) {
+      storedFileKey = msg.fileKey;
+      document.getElementById('file-key-input').value = msg.fileKey;
+      document.getElementById('file-key-hint').textContent = '저장된 키: ' + msg.fileKey;
+      document.getElementById('file-key-hint').style.color = '#059669';
+      updateFileUrl();
+    }
+  }
+
+  if (msg.type === 'debug-filekey') {
+    // 디버그 메시지 무시 (더 이상 필요 없음)
+  }
+
+  if (msg.type === 'no-selection') {
+    currentItems = [];
+    updateItemSelect();
+    showStatus('피그마에서 프레임이나 섹션을 선택해주세요', 'info');
+    return;
+  }
+
+  if (msg.type === 'selection') {
+    // URL 자동 입력
+    pendingNodeId = msg.autoNodeId || null;
+    updateFileUrl();
+    showStatus('nodeId: ' + (msg.autoNodeId||'없음') + ' / fileKey: ' + (storedFileKey||'없음'), 'info');
+
+    currentItems = [];
+    
+    if (msg.sections && msg.sections.length > 0) {
+      for (var i = 0; i < msg.sections.length; i++) {
+        var sec = msg.sections[i];
+        currentItems.push({
+          id: sec.id,
+          name: sec.name,
+          type: 'section',
+          children: sec.children
+        });
+      }
+    }
+    
+    if (msg.frames && msg.frames.length > 0) {
+      for (var j = 0; j < msg.frames.length; j++) {
+        var frame = msg.frames[j];
+        currentItems.push({
+          id: frame.id,
+          name: frame.name,
+          type: 'frame'
+        });
+      }
+    }
+    
+    updateItemSelect();
+    
+    if (currentItems.length > 0) {
+      var count = msg.sections.length + msg.frames.length;
+      showStatus(count + '개 항목 선택됨', 'info');
+    }
+  }
+
+  if (msg.type === 'export-done') {
+    uploadToSlack(msg.frames, msg.nodeUrl, msg.displayName, msg.threadUrl);
+  }
+
+  if (msg.type === 'error') {
+    showStatus(msg.message, 'error');
+    setLoading(false);
+  }
+};
+
+function updateItemSelect() {
+  var sel = document.getElementById('item-select');
+  sel.innerHTML = '<option value="">-- 선택해주세요 --</option>';
+  
+  for (var i = 0; i < currentItems.length; i++) {
+    var item = currentItems[i];
+    var opt = document.createElement('option');
+    opt.value = item.id;
+    
+    if (item.type === 'section') {
+      opt.textContent = '📦 ' + item.name + ' (' + item.children.length + '개)';
+    } else {
+      opt.textContent = '🖼️ ' + item.name;
+    }
+    
+    sel.appendChild(opt);
+  }
+  
+  if (currentItems.length > 0) {
+    sel.value = currentItems[0].id;
+    selectedId = currentItems[0].id;
+    updateFramePreview();
+  } else {
+    document.getElementById('frame-preview').style.display = 'none';
+  }
+}
+
+document.getElementById('item-select').onchange = function() {
+  selectedId = this.value;
+  updateFramePreview();
+};
+
+function updateFramePreview() {
+  var item = currentItems.find(function(i) { return i.id === selectedId; });
+  var preview = document.getElementById('frame-preview');
+  var list = document.getElementById('frame-list');
+  
+  if (item && item.type === 'section') {
+    list.innerHTML = '';
+    for (var i = 0; i < item.children.length; i++) {
+      var div = document.createElement('div');
+      div.className = 'frame-item';
+      div.textContent = item.children[i].name;
+      list.appendChild(div);
+    }
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function showStatus(msg, type) {
+  var el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = 'status ' + type;
+  el.textContent = msg;
+}
+
+function setLoading(loading) {
+  var btn = document.getElementById('share-btn');
+  btn.disabled = loading;
+  btn.textContent = loading ? '공유 중...' : '슬랙에 공유하기';
+}
+
+function share() {
+  if (!selectedId) {
+    showStatus('공유할 항목을 선택해주세요', 'error');
+    return;
+  }
+  
+  var item = currentItems.find(function(i) { return i.id === selectedId; });
+  if (!item) {
+    showStatus('선택된 항목을 찾을 수 없습니다', 'error');
+    return;
+  }
+  
+  setLoading(true);
+  
+  // 스레드 URL 파싱
+  var threadUrl = document.getElementById('thread-url').value.trim();
+  
+  if (item.type === 'section') {
+    var nodeIds = item.children.map(function(c) { return c.id; });
+    showStatus('프레임 추출 중... (' + nodeIds.length + '개)', 'info');
+    parent.postMessage({ pluginMessage: { 
+      type: 'export-frames', 
+      nodeIds: nodeIds, 
+      fileUrl: fileUrl,
+      displayName: item.name,
+      threadUrl: threadUrl
+    } }, '*');
+  } else {
+    showStatus('프레임 추출 중...', 'info');
+    parent.postMessage({ pluginMessage: { 
+      type: 'export-frames', 
+      nodeIds: [selectedId], 
+      fileUrl: fileUrl,
+      displayName: item.name,
+      threadUrl: threadUrl
+    } }, '*');
+  }
+}
+
+function uploadToSlack(frames, nodeUrl, displayName, threadUrl) {
+  var channelId = document.getElementById('channel-select').value;
+  var message = document.getElementById('message').value.trim();
+
+  showStatus('슬랙에 업로드 중...', 'info');
+
+  var uploadData = {
+    frames: [],
+    channelId: channelId,
+    message: message,
+    figmaUrl: nodeUrl,
+    frameName: displayName,
+    threadUrl: threadUrl
+  };
+
+  for (var i = 0; i < frames.length; i++) {
+    var binary = '';
+    var uint8 = new Uint8Array(frames[i].bytes);
+    for (var j = 0; j < uint8.length; j++) {
+      binary += String.fromCharCode(uint8[j]);
+    }
+    var filename = frames[i].name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.png';
+    uploadData.frames.push({
+      imageBase64: btoa(binary),
+      filename: filename
+    });
+  }
+
+  fetch('http://127.0.0.1:18790/share', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(uploadData)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (!data.ok) throw new Error(data.error);
+    showStatus('✅ "' + displayName + '" 공유 완료!', 'success');
+    document.getElementById('message').value = '';
+
+    // 노션 항목이 선택된 경우 자동 업데이트
+    if (selectedNotionId && nodeUrl) {
+      var nodeIds = frames.map(function(f) { return f.nodeId; });
+      fetch('http://127.0.0.1:18790/notion-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId: selectedNotionId,
+          figmaUrl: nodeUrl,
+          fileKey: storedFileKey || null,
+          nodeIds: nodeIds
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        if (r.ok) showStatus('✅ "' + displayName + '" 공유 + 노션 완료 처리!', 'success');
+      });
+    }
+  })
+  .catch(function(err) {
+    showStatus('오류: ' + err.message, 'error');
+  })
+  .finally(function() {
+    setLoading(false);
+  });
+}
+</script>
+</body>
+</html>

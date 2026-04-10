@@ -1,0 +1,12 @@
+{
+  "name": "Figma to Slack",
+  "id": "figma-to-slack-yopvis",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "로컬 서버(127.0.0.1:18790)를 통해 Slack API에 Figma 프레임을 업로드합니다."
+  }
+}

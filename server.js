@@ -17,6 +17,15 @@ if (fs.existsSync(envPath)) {
 }
 
 const PORT = 18790;
+
+// 파일키 서버 저장소 (파일명 → fileKey)
+const filekeysPath = path.join(__dirname, 'filekeys.json');
+function loadFilekeys() {
+  try { return JSON.parse(fs.readFileSync(filekeysPath, 'utf8')); } catch { return {}; }
+}
+function saveFilekeys(data) {
+  fs.writeFileSync(filekeysPath, JSON.stringify(data, null, 2));
+}
 const SLACK_TOKEN   = process.env.SLACK_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
 const NOTION_TOKEN  = process.env.NOTION_TOKEN;
@@ -157,6 +166,39 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // ── 파일키 조회 ──────────────────────────────────────────────────
+  if (req.method === 'GET' && req.url.startsWith('/get-filekey?')) {
+    const fileName = new URL('http://x' + req.url).searchParams.get('fileName') || '';
+    const keys = loadFilekeys();
+    const fileKey = keys[fileName] || null;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, fileKey }));
+    return;
+  }
+
+  // ── 파일키 저장 ──────────────────────────────────────────────────
+  if (req.method === 'POST' && req.url === '/set-filekey') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { fileName, fileKey } = JSON.parse(body);
+        if (fileName && fileKey && /^[a-zA-Z0-9]{10,40}$/.test(fileKey)) {
+          const keys = loadFilekeys();
+          keys[fileName] = fileKey;
+          saveFilekeys(keys);
+          console.log(`[파일키 저장] "${fileName}" → ${fileKey}`);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false }));
+      }
+    });
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     res.writeHead(200);
     res.end();
@@ -219,10 +261,12 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         const { fileKey, nodeId } = JSON.parse(body);
-        // 해당 노드 정보 조회
+        console.log('[figma-node-url] fileKey:', fileKey, '| nodeId:', nodeId);
         const data = await figmaRequest(`files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}`);
+        console.log('[figma-node-url] API 응답:', JSON.stringify(data).substring(0, 300));
         const node = data.nodes?.[nodeId]?.document;
         if (!node) {
+          console.log('[figma-node-url] 노드 없음 → fallback');
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, nodeId }));
           return;

@@ -104,6 +104,30 @@ var currentItems = [];
 var selectedId = null;
 var notionEntries = [];
 var storedFileKey = null;
+var storedFileName = null;
+
+function applyFileKey(key) {
+  if (!key || storedFileKey) return;
+  var clean = extractFileKey(key);
+  if (!clean) return;
+  storedFileKey = clean;
+  // 서버에 저장
+  if (storedFileName) {
+    fetch('http://127.0.0.1:18790/set-filekey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: storedFileName, fileKey: clean })
+    }).catch(function() {});
+  }
+  updateDisplayUrl();
+}
+
+function loadFilekeyFromServer(fileName) {
+  fetch('http://127.0.0.1:18790/get-filekey?fileName=' + encodeURIComponent(fileName))
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d.fileKey) applyFileKey(d.fileKey); })
+    .catch(function() {});
+}
 
 function extractFileKey(val) {
   if (!val) return null;
@@ -238,16 +262,14 @@ window.onmessage = function(event) {
   if (!msg) return;
 
   if (msg.type === 'stored-filekey') {
-    // figma.fileKey로 이미 설정된 경우 clientStorage 값으로 덮어쓰지 않음
+    storedFileName = msg.fileName || null;
+    // clientStorage 값 시도 (오염 안 됐을 때만)
     if (msg.fileKey && !storedFileKey) {
-      var cleanKey = extractFileKey(msg.fileKey);
-      if (cleanKey) {
-        storedFileKey = cleanKey;
-        if (cleanKey !== msg.fileKey) {
-          parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: cleanKey } }, '*');
-        }
-        updateDisplayUrl();
-      }
+      applyFileKey(msg.fileKey);
+    }
+    // 서버에서 파일키 조회 (figma.fileKey null 대비)
+    if (storedFileName && !storedFileKey) {
+      loadFilekeyFromServer(storedFileName);
     }
   }
 
@@ -260,11 +282,7 @@ window.onmessage = function(event) {
 
   if (msg.type === 'selection') {
     // figma.fileKey가 유효하면 즉시 사용 (개발모드가 아닐 때 자동 획득)
-    if (msg.fileKey) {
-      storedFileKey = msg.fileKey;
-      document.getElementById('file-key-input').value = msg.fileKey;
-      parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: msg.fileKey } }, '*');
-    }
+    if (msg.fileKey) applyFileKey(msg.fileKey);
     currentItems = [];
     
     if (msg.sections && msg.sections.length > 0) {

@@ -107,12 +107,11 @@ var storedFileKey = null;
 
 function extractFileKey(val) {
   if (!val) return null;
-  // figma URL에서 키만 추출
-  var m = val.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
+  var m = val.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]{10,40})/);
   if (m) return m[1];
-  // 순수 키(영문+숫자만)인 경우
   var k = val.split(/[/?&# ]/)[0];
-  return /^[a-zA-Z0-9]{10,}$/.test(k) ? k : null;
+  // 파일키는 보통 22자, 최대 40자로 제한 (오염된 긴 문자열 차단)
+  return /^[a-zA-Z0-9]{10,40}$/.test(k) ? k : null;
 }
 
 function updateDisplayUrl() {
@@ -239,17 +238,14 @@ window.onmessage = function(event) {
   if (!msg) return;
 
   if (msg.type === 'stored-filekey') {
-    if (msg.fileKey) {
+    // figma.fileKey로 이미 설정된 경우 clientStorage 값으로 덮어쓰지 않음
+    if (msg.fileKey && !storedFileKey) {
       var cleanKey = extractFileKey(msg.fileKey);
       if (cleanKey) {
         storedFileKey = cleanKey;
-        // 잘못된 값이 저장돼 있으면 자동으로 올바른 키로 덮어씀
         if (cleanKey !== msg.fileKey) {
           parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: cleanKey } }, '*');
         }
-        document.getElementById('file-key-input').value = cleanKey;
-        document.getElementById('file-key-hint').textContent = '저장된 키: ' + cleanKey;
-        document.getElementById('file-key-hint').style.color = '#059669';
         updateDisplayUrl();
       }
     }

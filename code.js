@@ -10,7 +10,7 @@ figma.clientStorage.getAsync('fileKey__' + _fileName).then(function(fk) {
       cleanKey = m[1];
     } else {
       var k = String(fk).split(/[/?&#]/)[0];
-      cleanKey = /^[a-zA-Z0-9]{10,}$/.test(k) ? k : null;
+      cleanKey = /^[a-zA-Z0-9]{10,40}$/.test(k) ? k : null;
     }
     // 저장값이 더러웠으면 깨끗한 키로 덮어씀
     if (cleanKey && cleanKey !== fk) {

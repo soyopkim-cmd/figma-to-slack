@@ -250,6 +250,7 @@ window.onmessage = function(event) {
     if (msg.fileKey) {
       storedFileKey = msg.fileKey;
       document.getElementById('file-key-input').value = msg.fileKey;
+      parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: msg.fileKey } }, '*');
     }
     currentItems = [];
     

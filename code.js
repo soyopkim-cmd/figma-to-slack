@@ -55,6 +55,9 @@ function getSelection() {
   }
   
   var fk = figma.fileKey;
+  if (fk) {
+    figma.clientStorage.setAsync('fileKey__' + figma.root.name, fk);
+  }
 
   figma.ui.postMessage({
     type: 'selection',

@@ -220,7 +220,7 @@ const server = http.createServer((req, res) => {
       try {
         const { fileKey, nodeId } = JSON.parse(body);
         // 해당 노드 정보 조회
-        const data = await figmaRequest(`nodes?ids=${encodeURIComponent(nodeId)}&file_key=${fileKey}`);
+        const data = await figmaRequest(`files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}`);
         const node = data.nodes?.[nodeId]?.document;
         if (!node) {
           res.writeHead(200, { 'Content-Type': 'application/json' });

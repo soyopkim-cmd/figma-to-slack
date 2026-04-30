@@ -45,13 +45,8 @@ hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
 <!-- 파일 URL -->
 <div class="url-section" id="url-section">
   <label>피그마 파일 URL <span id="url-saved" style="font-weight:400;color:#059669;font-size:11px"></span></label>
-  <div id="file-url" style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:12px;color:#333;word-break:break-all;min-height:34px;line-height:18px"></div>
-  <div class="url-hint" style="margin-top:6px;display:flex;gap:6px;align-items:center">
-    <span style="white-space:nowrap;color:#666">파일 키:</span>
-    <input type="text" id="file-key-input" placeholder="eAVUdjXGy... (URL에서 /design/ 다음 부분)" style="flex:1;padding:4px 7px;font-size:11px;border:1px solid #ddd;border-radius:4px">
-    <button id="file-key-save-btn" onclick="saveFileKey()" style="width:auto;padding:4px 10px;font-size:11px;background:#18a0fb;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">저장</button>
-  </div>
-  <div id="file-key-hint" class="url-hint" style="margin-top:4px">프레임·섹션 선택하면 URL이 자동으로 바뀌어요</div>
+  <div id="file-url" style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:12px;color:#333;word-break:break-all;min-height:34px;line-height:18px">프레임·섹션을 선택하면 자동으로 입력돼요</div>
+  <input type="hidden" id="file-key-input">
 </div>
 
 <div class="section">
@@ -117,13 +112,16 @@ function extractFileKey(val) {
 }
 
 function updateDisplayUrl() {
-  if (!storedFileKey) return;
+  if (!storedFileKey) {
+    document.getElementById('file-url').textContent = '프레임·섹션을 선택하면 자동으로 입력돼요';
+    document.getElementById('url-section').classList.remove('has-url');
+    return;
+  }
   fileUrl = 'https://www.figma.com/design/' + storedFileKey;
   var displayUrl = selectedId ? fileUrl + '?node-id=' + selectedId.replace(':', '-') : fileUrl;
   document.getElementById('file-url').textContent = displayUrl;
   document.getElementById('url-section').classList.add('has-url');
   document.getElementById('url-saved').textContent = '✓ 자동 입력됨';
-  document.getElementById('file-key-hint').textContent = '키: ' + storedFileKey;
 }
 
 function saveFileKey() {

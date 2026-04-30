@@ -49,6 +49,7 @@ hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
 <div class="url-section" id="url-section">
   <label>피그마 파일 URL <span id="url-saved" style="font-weight:400;color:#059669;font-size:11px"></span></label>
   <div id="file-url" style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:12px;color:#333;word-break:break-all;min-height:34px;line-height:18px">프레임·섹션을 선택하면 자동으로 입력돼요</div>
+  <div id="filekey-debug" style="font-size:10px;color:#aaa;margin-top:3px"></div>
   <input type="hidden" id="file-key-input">
 </div>
 
@@ -115,9 +116,11 @@ function extractFileKey(val) {
 }
 
 function updateDisplayUrl() {
+  var dbg = document.getElementById('filekey-debug');
   if (!storedFileKey) {
     document.getElementById('file-url').textContent = '프레임·섹션을 선택하면 자동으로 입력돼요';
     document.getElementById('url-section').classList.remove('has-url');
+    if (dbg) dbg.textContent = '파일키: 없음 (figma.fileKey null)';
     return;
   }
   fileUrl = 'https://www.figma.com/design/' + storedFileKey;
@@ -125,6 +128,7 @@ function updateDisplayUrl() {
   document.getElementById('file-url').textContent = displayUrl;
   document.getElementById('url-section').classList.add('has-url');
   document.getElementById('url-saved').textContent = '✓ 자동 입력됨';
+  if (dbg) dbg.textContent = '파일키: ' + storedFileKey.substring(0, 8) + '...';
 }
 
 function saveFileKey() {

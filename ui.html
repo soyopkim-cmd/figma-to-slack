@@ -37,7 +37,10 @@ hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
 </head>
 <body>
 
-<h2>Figma to Slack</h2>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <h2 style="margin-bottom:0">Figma to Slack</h2>
+  <button onclick="refresh()" title="새로고침" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px;color:#666;line-height:1" id="refresh-btn">↺</button>
+</div>
 
 <div id="status" style="display:none" class="status"></div>
 
@@ -211,6 +214,18 @@ function loadChannels() {
     });
 }
 
+
+function refresh() {
+  var btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻';
+  btn.style.color = '#18a0fb';
+  loadNotionEntries();
+  parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+  setTimeout(function() {
+    btn.textContent = '↺';
+    btn.style.color = '#666';
+  }, 800);
+}
 
 loadChannels();
 loadNotionEntries();

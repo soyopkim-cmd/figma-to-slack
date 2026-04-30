@@ -4,13 +4,24 @@
  */
 const http = require('http');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
+
+// .env 파일 로드
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const [key, ...rest] = line.split('=');
+    if (key && rest.length) process.env[key.trim()] = rest.join('=').trim();
+  });
+}
 
 const PORT = 18790;
-const SLACK_TOKEN   = 'xoxb-5628266469093-10407206670496-ftzC5GST9xhB2cgqTpGp7ZpD';
-const SLACK_CHANNEL = 'C0A8WKD7X19'; // 1_사업팀_디자인요청
-const NOTION_TOKEN  = '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';
-const NOTION_DB_ID  = '2ed89e87-fdef-8045-8317-ce980386dd9e';
-const FIGMA_TOKEN   = 'figd_nAO0k9FlvsAgQrXTO4VJQVjRB0UdroSwsA2DF0cO';
+const SLACK_TOKEN   = process.env.SLACK_TOKEN;
+const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
+const NOTION_TOKEN  = process.env.NOTION_TOKEN;
+const NOTION_DB_ID  = process.env.NOTION_DB_ID;
+const FIGMA_TOKEN   = process.env.FIGMA_TOKEN;
 
 // ── 피그마 API 헬퍼 ──────────────────────────────────────────────
 

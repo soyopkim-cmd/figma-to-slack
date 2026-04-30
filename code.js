@@ -1,9 +1,23 @@
 figma.showUI(__html__, { width: 360, height: 520, title: "Figma to Slack" });
 
-// 이 파일에 저장된 fileKey 불러오기
+// 이 파일에 저장된 fileKey 불러오기 (오염된 URL이 저장돼 있으면 키만 추출해서 정리)
 var _fileName = figma.root.name;
 figma.clientStorage.getAsync('fileKey__' + _fileName).then(function(fk) {
-  figma.ui.postMessage({ type: 'stored-filekey', fileKey: fk || null, fileName: _fileName });
+  var cleanKey = null;
+  if (fk) {
+    var m = String(fk).match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
+    if (m) {
+      cleanKey = m[1];
+    } else {
+      var k = String(fk).split(/[/?&#]/)[0];
+      cleanKey = /^[a-zA-Z0-9]{10,}$/.test(k) ? k : null;
+    }
+    // 저장값이 더러웠으면 깨끗한 키로 덮어씀
+    if (cleanKey && cleanKey !== fk) {
+      figma.clientStorage.setAsync('fileKey__' + _fileName, cleanKey);
+    }
+  }
+  figma.ui.postMessage({ type: 'stored-filekey', fileKey: cleanKey || null, fileName: _fileName });
 });
 
 function getSelection() {
@@ -40,24 +54,13 @@ function getSelection() {
     }
   }
   
-  var autoNodeId = null;
-  if (selection.length > 0) {
-    var firstNode = selection[0];
-    var targetNode = (firstNode.type === 'SECTION' && firstNode.children.length > 0)
-      ? firstNode.children[0]
-      : firstNode;
-    autoNodeId = targetNode.id.replace(':', '-');
-  }
-
   var fk = figma.fileKey;
-  figma.ui.postMessage({ type: 'debug-filekey', value: String(fk) });
 
   figma.ui.postMessage({
     type: 'selection',
     frames: frames,
     sections: sections,
-    fileKey: fk || null,
-    autoNodeId: autoNodeId
+    fileKey: fk || null
   });
 }
 
@@ -77,6 +80,7 @@ figma.ui.onmessage = function(msg) {
   if (msg.type === 'export-frames') {
     var nodeIds = msg.nodeIds;
     var fileUrl = msg.fileUrl;
+    var linkNodeId = msg.linkNodeId || null;
     var displayName = msg.displayName;
     var threadUrl = msg.threadUrl;
     var exportPromises = [];
@@ -108,9 +112,10 @@ figma.ui.onmessage = function(msg) {
           displayName = allFrames.length > 1 ? allFrames.length + '개 프레임' : allFrames[0].name;
         }
         
-        if (fileUrl) {
-          var firstNodeId = nodeIds[0].replace(/:/g, '-');
-          nodeUrl = fileUrl + '?node-id=' + firstNodeId;
+        if (fileUrl && linkNodeId) {
+          nodeUrl = fileUrl + '?node-id=' + String(linkNodeId).replace(':', '-');
+        } else if (fileUrl) {
+          nodeUrl = fileUrl;
         }
         
         figma.ui.postMessage({

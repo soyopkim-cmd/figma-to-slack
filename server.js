@@ -201,6 +201,47 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── 피그마: 섹션에서 실제 프레임 ID 조회 ───────────────────
+  if (req.method === 'POST' && req.url === '/figma-node-url') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { fileKey, nodeId } = JSON.parse(body);
+        // 해당 노드 정보 조회
+        const data = await figmaRequest(`nodes?ids=${encodeURIComponent(nodeId)}&file_key=${fileKey}`);
+        const node = data.nodes?.[nodeId]?.document;
+        if (!node) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, nodeId }));
+          return;
+        }
+        // 노드 자체가 FRAME이면 그대로 사용
+        if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, nodeId }));
+          return;
+        }
+        // SECTION이면 안에서 첫 번째 FRAME 찾기
+        function findFirstFrame(n) {
+          if (n.type === 'FRAME' || n.type === 'COMPONENT') return n.id;
+          for (const c of (n.children || [])) {
+            const found = findFirstFrame(c);
+            if (found) return found;
+          }
+          return null;
+        }
+        const frameId = findFirstFrame(node);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, nodeId: frameId || nodeId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, nodeId, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // ── 노션: 디자인 완료 처리 ───────────────────────────────────
   if (req.method === 'POST' && req.url === '/notion-complete') {
     let body = '';
@@ -352,17 +393,16 @@ const server = http.createServer((req, res) => {
 
         // Step 3: 파일 업로드 완료 + 채널 공유
         let comment = '';
-        if (data.message) {
-          comment = data.message;
-        }
-        
         // URL이 있으면 프레임명으로 하이퍼링크, 없으면 프레임명만
         if (data.figmaUrl && data.frameName) {
-          comment += (comment ? '\n' : '') + `<${data.figmaUrl}|${data.frameName}>`;
+          comment = `<${data.figmaUrl}|${data.frameName}>`;
         } else if (data.frameName) {
-          comment += (comment ? '\n' : '') + data.frameName;
+          comment = data.frameName;
         } else if (data.figmaUrl) {
-          comment += (comment ? '\n' : '') + data.figmaUrl;
+          comment = data.figmaUrl;
+        }
+        if (data.message) {
+          comment += (comment ? '\n' : '') + data.message;
         }
         
         const completePayload = {

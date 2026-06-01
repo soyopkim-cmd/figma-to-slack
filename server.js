@@ -316,31 +316,37 @@ const server = http.createServer((req, res) => {
         if (pageData.object !== 'page') throw new Error('노션 페이지 업데이트 실패');
 
         // 2. 피그마 이미지 URL 조회 후 노션 페이지에 블록 추가
-        if (fileKey && nodeIds && nodeIds.length > 0) {
-          const ids = nodeIds.map(id => encodeURIComponent(id)).join(',');
-          const imgData = await figmaRequest(`images/${fileKey}?ids=${ids}&format=png&scale=2`);
+        const children = [];
 
-          const children = [];
-          for (const nodeId of nodeIds) {
-            const imgUrl = imgData.images?.[nodeId];
-            if (imgUrl) {
-              children.push({
-                object: 'block',
-                type: 'image',
-                image: { type: 'external', external: { url: imgUrl } }
-              });
+        if (fileKey && nodeIds && nodeIds.length > 0) {
+          try {
+            const ids = nodeIds.map(id => encodeURIComponent(id)).join(',');
+            const imgData = await figmaRequest(`images/${fileKey}?ids=${ids}&format=png&scale=2`);
+            for (const nodeId of nodeIds) {
+              const imgUrl = imgData.images?.[nodeId];
+              if (imgUrl) {
+                children.push({
+                  object: 'block',
+                  type: 'image',
+                  image: { type: 'external', external: { url: imgUrl } }
+                });
+              }
             }
+          } catch (e) {
+            console.error('[Figma 이미지 조회 실패]', e.message);
           }
-          if (figmaUrl) {
-            children.push({
-              object: 'block',
-              type: 'bookmark',
-              bookmark: { url: figmaUrl }
-            });
-          }
-          if (children.length > 0) {
-            await notionRequest('PATCH', `blocks/${pageId}/children`, { children });
-          }
+        }
+
+        if (figmaUrl) {
+          children.push({
+            object: 'block',
+            type: 'bookmark',
+            bookmark: { url: figmaUrl }
+          });
+        }
+
+        if (children.length > 0) {
+          await notionRequest('PATCH', `blocks/${pageId}/children`, { children });
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -397,13 +397,18 @@ function share() {
     showStatus('공유할 항목을 선택해주세요', 'error');
     return;
   }
-  
+
   var item = currentItems.find(function(i) { return i.id === selectedId; });
   if (!item) {
     showStatus('선택된 항목을 찾을 수 없습니다', 'error');
     return;
   }
-  
+
+  if (!fileUrl) {
+    showStatus('피그마 파일 키를 먼저 입력하고 저장해주세요 (위 파일 키 입력란)', 'error');
+    return;
+  }
+
   setLoading(true);
 
   var threadUrl = document.getElementById('thread-url').value.trim();

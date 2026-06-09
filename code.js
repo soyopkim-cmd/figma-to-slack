@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 360, height: 520, title: "Figma to Slack" });
+figma.showUI(__html__, { width: 360, height: 490, title: "Figma to Slack" });
 
 // 이 파일에 저장된 fileKey 불러오기 (오염된 URL이 저장돼 있으면 키만 추출해서 정리)
 var _fileName = figma.root.name;
@@ -12,9 +12,12 @@ figma.clientStorage.getAsync('fileKey__' + _fileName).then(function(fk) {
       var k = String(fk).split(/[/?&#]/)[0];
       cleanKey = /^[a-zA-Z0-9]{10,40}$/.test(k) ? k : null;
     }
-    // 저장값이 더러웠으면 깨끗한 키로 덮어씀
     if (cleanKey && cleanKey !== fk) {
+      // 저장값이 오염됐으면 정제된 키로 덮어씀
       figma.clientStorage.setAsync('fileKey__' + _fileName, cleanKey);
+    } else if (!cleanKey && fk) {
+      // 유효하지 않은 키(너무 길거나 형식 오류) → 삭제
+      figma.clientStorage.deleteAsync('fileKey__' + _fileName);
     }
   }
   figma.ui.postMessage({ type: 'stored-filekey', fileKey: cleanKey || null, fileName: _fileName });

@@ -6,6 +6,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const WebSocket = require('ws');
 
 // .env 파일 로드
 const envPath = path.join(__dirname, '.env');
@@ -26,11 +27,12 @@ function loadFilekeys() {
 function saveFilekeys(data) {
   fs.writeFileSync(filekeysPath, JSON.stringify(data, null, 2));
 }
-const SLACK_TOKEN   = process.env.SLACK_TOKEN;
-const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
-const NOTION_TOKEN  = process.env.NOTION_TOKEN;
-const NOTION_DB_ID  = process.env.NOTION_DB_ID;
-const FIGMA_TOKEN   = process.env.FIGMA_TOKEN;
+const SLACK_TOKEN       = process.env.SLACK_TOKEN;
+const SLACK_CHANNEL     = process.env.SLACK_CHANNEL;
+const NOTION_TOKEN      = process.env.NOTION_TOKEN;
+const NOTION_DB_ID      = process.env.NOTION_DB_ID;
+const FIGMA_TOKEN       = process.env.FIGMA_TOKEN;
+const APP_LEVEL_TOKEN   = process.env.APP_LEVEL_TOKEN;  // xapp-... (Socket Mode용)
 
 // ── 피그마 API 헬퍼 ──────────────────────────────────────────────
 
@@ -162,6 +164,7 @@ async function uploadSingleFile(imageBuffer, filename) {
 }
 
 const server = http.createServer((req, res) => {
+  console.log(`[요청] ${req.method} ${req.url}`);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -454,7 +457,6 @@ const server = http.createServer((req, res) => {
 
         // Step 3: 파일 업로드 완료 + 채널 공유
         let comment = '';
-        // URL이 있으면 프레임명으로 하이퍼링크, 없으면 프레임명만
         if (data.figmaUrl && data.frameName) {
           comment = `<${data.figmaUrl}|${data.frameName}>`;
         } else if (data.frameName) {
@@ -465,28 +467,19 @@ const server = http.createServer((req, res) => {
         if (data.message) {
           comment += (comment ? '\n' : '') + data.message;
         }
-        
+
         const completePayload = {
           files: JSON.stringify(files),
           channel_id: data.channelId,
           initial_comment: comment
         };
-        
-        // 스레드가 있으면 추가
-        if (thread_ts) {
-          completePayload.thread_ts = thread_ts;
-        }
-        
+        if (thread_ts) completePayload.thread_ts = thread_ts;
+
         const completeData = await slackPost('files.completeUploadExternal', completePayload);
-        console.log('[Step 3] 응답:', JSON.stringify(completeData).substring(0, 500));
-        
+        console.log('[Step 3] 전송:', completeData.ok ? 'OK' : completeData.error);
+
         if (!completeData.ok) {
-          // 채널 공유 실패하면 메시지만이라도 보내기
-          console.log('[Step 3] 채널 공유 실패, 메시지만 전송...');
-          await slackPost('chat.postMessage', {
-            channel: data.channelId,
-            text: comment + '\n(이미지 업로드됨: ' + files.map(f => f.id).join(', ') + ')'
-          });
+          await slackPost('chat.postMessage', { channel: data.channelId, text: comment });
         }
 
         console.log(`[완료] ${files.length}개 파일 처리 완료`);
@@ -509,3 +502,161 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`Figma to Slack 서버 실행 중 (포트 ${PORT})`);
   console.log('피그마 플러그인에서 공유 버튼을 누르면 자동으로 슬랙에 전송됩니다.');
 });
+
+// ── :x: 이모티콘 삭제 기능 (Socket Mode) ─────────────────────────────────────
+
+let BOT_USER_ID = null;
+let BOT_ID = null;  // bot_id (B...) - 파일 메시지 등 bot_message 서브타입에서 사용
+
+// 봇 자신의 user_id + bot_id 조회
+function fetchBotUserId() {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'slack.com',
+      path: '/api/auth.test',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${SLACK_TOKEN}` }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(d);
+          if (data.ok) {
+            BOT_ID = data.bot_id || null;
+            resolve(data.user_id);
+          } else {
+            resolve(null);
+          }
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+}
+
+// 메시지 조회 (bot_id 확인용)
+function fetchMessage(channel, ts) {
+  return new Promise((resolve) => {
+    const params = new URLSearchParams({ channel, latest: ts, limit: '1', inclusive: 'true' });
+    const req = https.request({
+      hostname: 'slack.com',
+      path: `/api/conversations.history?${params}`,
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${SLACK_TOKEN}` }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(d);
+          resolve(data.ok ? (data.messages?.[0] || null) : null);
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+}
+
+// App-Level Token으로 WebSocket URL 발급
+function openSocketConnection() {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'slack.com',
+      path: '/api/apps.connections.open',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${APP_LEVEL_TOKEN}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': 0
+      }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(d)); }
+        catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function startSocketMode() {
+  if (!APP_LEVEL_TOKEN) {
+    console.log('[Socket Mode] APP_LEVEL_TOKEN 없음 → :x: 삭제 기능 비활성화');
+    return;
+  }
+
+  BOT_USER_ID = await fetchBotUserId();
+  console.log('[Socket Mode] 봇 user_id:', BOT_USER_ID);
+
+  async function connect() {
+    try {
+      const connData = await openSocketConnection();
+      if (!connData.ok) {
+        console.error('[Socket Mode] 연결 실패:', connData.error);
+        setTimeout(connect, 10000);
+        return;
+      }
+
+      const ws = new WebSocket(connData.url);
+
+      ws.on('open', () => console.log('[Socket Mode] 연결됨 ✅'));
+
+      ws.on('message', async (raw) => {
+        let msg;
+        try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+        // 이벤트 ACK
+        if (msg.envelope_id) {
+          ws.send(JSON.stringify({ envelope_id: msg.envelope_id }));
+        }
+
+        // reaction_added 이벤트 처리
+        if (msg.type === 'events_api' && msg.payload?.event?.type === 'reaction_added') {
+          const event = msg.payload.event;
+          if (event.reaction === 'x' && event.item?.type === 'message') {
+            const { channel, ts } = event.item;
+            let isBotMessage = false;
+
+            if (event.item_user && BOT_USER_ID) {
+              // 일반 메시지: item_user로 확인
+              isBotMessage = event.item_user === BOT_USER_ID;
+            } else {
+              // 파일/봇 메시지 등 item_user가 없는 경우: 메시지 조회 후 bot_id 확인
+              const message = await fetchMessage(channel, ts);
+              isBotMessage = message && (
+                message.bot_id === BOT_ID ||
+                message.user === BOT_USER_ID
+              );
+            }
+
+            if (isBotMessage) {
+              const del = await slackPost('chat.delete', { channel, ts });
+              console.log('[Socket Mode] :x: 삭제', del.ok ? '✅' : `실패: ${del.error}`);
+            }
+          }
+        }
+      });
+
+      ws.on('close', () => {
+        console.log('[Socket Mode] 연결 끊김 → 5초 후 재연결');
+        setTimeout(connect, 5000);
+      });
+
+      ws.on('error', (err) => console.error('[Socket Mode] 오류:', err.message));
+
+    } catch (err) {
+      console.error('[Socket Mode] 예외:', err.message);
+      setTimeout(connect, 10000);
+    }
+  }
+
+  connect();
+}
+
+startSocketMode();

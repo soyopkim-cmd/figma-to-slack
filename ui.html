@@ -4,99 +4,122 @@
 <meta charset="utf-8">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 16px; }
-h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-.section { margin-bottom: 14px; }
-label { display: block; font-weight: 500; margin-bottom: 5px; color: #444; }
-input, select, textarea {
-  width: 100%; padding: 8px 10px; border: 1px solid #ddd;
-  border-radius: 6px; font-size: 13px; outline: none;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px; color: #1a1a1a; background: #fff;
+  padding: 12px 14px;
 }
-input:focus, select:focus, textarea:focus { border-color: #18a0fb; }
-textarea { resize: vertical; min-height: 60px; }
-.btn {
-  width: 100%; padding: 10px; border: none; border-radius: 6px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
+label { display: block; font-size: 11px; font-weight: 500; color: #555; margin-bottom: 3px; }
+select, input, textarea {
+  width: 100%; padding: 6px 8px; border: 1px solid #ddd;
+  border-radius: 5px; font-size: 12px; outline: none; color: #1a1a1a; background: #fff;
 }
-.btn-primary { background: #18a0fb; color: #fff; margin-bottom: 8px; }
-.btn-primary:hover { background: #0d8de3; }
-.btn-primary:disabled { background: #aad4f5; cursor: not-allowed; }
-.status { padding: 9px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
-.info { background: #e8f4fd; color: #0d6efd; }
+select:focus, input:focus, textarea:focus { border-color: #18a0fb; }
+textarea { resize: none; height: 42px; font-family: inherit; }
+.row { margin-bottom: 8px; }
+.status {
+  padding: 6px 10px; border-radius: 5px; font-size: 11px;
+  margin-bottom: 8px; display: none;
+}
+.info    { background: #e8f4fd; color: #0d6efd; }
 .success { background: #d4edda; color: #155724; }
-.error { background: #f8d7da; color: #721c24; }
-hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
-.url-section { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
-.url-section.has-url { background: #d1fae5; border-color: #6ee7b7; }
-.url-hint { font-size: 11px; color: #888; margin-top: 4px; }
-.url-saved { color: #059669; font-size: 11px; margin-top: 4px; display: none; }
-.frame-list { background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; padding: 8px; margin-bottom: 14px; max-height: 120px; overflow-y: auto; }
-.frame-item { padding: 4px 8px; font-size: 12px; color: #666; }
-.frame-item:before { content: "• "; color: #999; }
+.error   { background: #f8d7da; color: #721c24; }
+hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+.frame-list {
+  border: 1px solid #eee; border-radius: 4px; padding: 3px 8px;
+  background: #fafafa; max-height: 48px; overflow-y: auto; margin-top: 3px;
+}
+.frame-item { font-size: 11px; color: #666; line-height: 1.7; }
+.frame-item:before { content: "• "; color: #bbb; }
+.btn-share {
+  width: 100%; padding: 9px; border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: #18a0fb; color: #fff; margin-top: 8px;
+}
+.btn-share:hover { background: #0d8de3; }
+.btn-share:disabled { background: #aad4f5; cursor: not-allowed; }
+.key-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px; cursor: pointer;
+  white-space: nowrap; border: 1px solid;
+}
+.key-ok      { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.key-missing { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 </style>
 </head>
 <body>
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-  <h2 style="margin-bottom:0">Figma to Slack</h2>
-  <button onclick="refresh()" title="새로고침" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px;color:#666;line-height:1" id="refresh-btn">↺</button>
+<!-- 헤더 -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+  <span style="font-size:13px;font-weight:600">Figma to Slack</span>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span id="key-badge" class="key-badge key-missing" onclick="toggleKeySetup()" title="파일 키 설정">⚠ 키 없음</span>
+    <button onclick="refresh()" id="refresh-btn" title="새로고침"
+      style="background:none;border:1px solid #ddd;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:13px;color:#666;line-height:1.4">↺</button>
+  </div>
 </div>
 
-<div id="status" style="display:none" class="status"></div>
+<!-- 상태 메시지 -->
+<div id="status" class="status"></div>
 
-
-<!-- 파일 URL -->
-<div class="url-section" id="url-section">
-  <label>피그마 파일 URL <span id="url-saved" style="font-weight:400;color:#059669;font-size:11px"></span></label>
-  <div id="file-url" style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:12px;color:#333;word-break:break-all;min-height:34px;line-height:18px">프레임·섹션을 선택하면 자동으로 입력돼요</div>
-  <div id="filekey-debug" style="font-size:10px;color:#aaa;margin-top:3px"></div>
-  <input type="hidden" id="file-key-input">
+<!-- 파일 키 설정 (키 없을 때 또는 배지 클릭 시 표시) -->
+<div id="filekey-setup" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px;margin-bottom:8px">
+  <div style="font-size:10px;color:#92400e;margin-bottom:5px">Figma 디자인 파일 URL 붙여넣기 또는 자동 감지</div>
+  <div style="display:flex;gap:4px">
+    <input type="text" id="file-key-input" placeholder="https://figma.com/design/..." style="flex:1;font-size:11px;padding:5px 7px">
+    <button onclick="saveFileKey()"
+      style="padding:5px 9px;font-size:11px;background:#18a0fb;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap">저장</button>
+    <button onclick="tryClipboardDetect(true)" title="클립보드에서 자동 감지"
+      style="padding:5px 9px;font-size:11px;background:#fff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;white-space:nowrap">📋</button>
+  </div>
 </div>
 
-<div class="section">
+<!-- 선택된 항목 -->
+<div class="row">
   <label>선택된 항목</label>
   <select id="item-select">
     <option value="">-- 피그마에서 선택해주세요 --</option>
   </select>
 </div>
 
-<div id="frame-preview" style="display:none" class="section">
-  <label>포함된 프레임</label>
+<!-- 프레임 목록 (섹션 선택 시) -->
+<div id="frame-preview" style="display:none" class="row">
   <div class="frame-list" id="frame-list"></div>
 </div>
 
 <hr>
 
-<!-- 노션 연동 섹션 -->
-<div class="section">
-  <label>📋 노션 디자인 요청 항목 <span id="notion-loading" style="color:#aaa;font-weight:400;font-size:11px">불러오는 중...</span></label>
-  <select id="notion-select" onchange="onNotionSelect()">
-    <option value="">-- 해당 없음 (노션 업데이트 안 함) --</option>
-  </select>
-  <div id="notion-thread-status" class="url-hint" style="display:none"></div>
+<!-- 노션 + 채널 (2열) -->
+<div style="display:flex;gap:8px" class="row">
+  <div style="flex:3">
+    <label>📋 노션 항목 <span id="notion-loading" style="font-weight:400;color:#bbb;font-size:10px"></span></label>
+    <select id="notion-select" onchange="onNotionSelect()">
+      <option value="">-- 해당 없음 --</option>
+    </select>
+  </div>
+  <div style="flex:2">
+    <label>슬랙 채널</label>
+    <select id="channel-select">
+      <option value="C0A8WKD7X19">#1_사업팀_디자인요청</option>
+    </select>
+  </div>
 </div>
 
-<hr>
-
-<div class="section">
-  <label>슬랙 채널</label>
-  <select id="channel-select">
-    <option value="C0A8WKD7X19">#1_사업팀_디자인요청</option>
-  </select>
+<!-- 스레드 URL -->
+<div class="row" style="position:relative">
+  <input type="text" id="thread-url"
+    placeholder="스레드 URL (노션 선택 시 자동 입력)"
+    style="padding-right:80px;font-size:11px">
+  <span id="notion-thread-status"
+    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;white-space:nowrap;color:#059669"></span>
 </div>
 
-<div class="section">
-  <label>스레드 댓글로 공유 (선택)</label>
-  <input type="text" id="thread-url" placeholder="https://zep-us.slack.com/archives/C0A8WKD7X19/p1234567890123456">
-  <div class="url-hint">노션 항목 선택 시 자동 입력 · 직접 붙여넣기도 가능</div>
+<!-- 메시지 -->
+<div class="row">
+  <textarea id="message" placeholder="메시지 (선택)">작업 완료되어 전달드립니다 :듀가나디_장미:</textarea>
 </div>
 
-<div class="section">
-  <label>메시지 (선택)</label>
-  <textarea id="message">작업 완료되어 전달드립니다 :듀가나디_장미:</textarea>
-</div>
-
-<button class="btn btn-primary" id="share-btn" onclick="share()">슬랙에 공유하기</button>
+<!-- 공유 버튼 -->
+<button class="btn-share" id="share-btn" onclick="share()">슬랙에 공유하기</button>
 
 <script>
 var fileUrl = '';
@@ -105,28 +128,66 @@ var selectedId = null;
 var notionEntries = [];
 var storedFileKey = null;
 var storedFileName = null;
+var keySetupOpen = false;
+
+function toggleKeySetup() {
+  keySetupOpen = !keySetupOpen;
+  document.getElementById('filekey-setup').style.display = keySetupOpen ? 'block' : 'none';
+}
 
 function applyFileKey(key) {
   if (!key || storedFileKey) return;
   var clean = extractFileKey(key);
   if (!clean) return;
   storedFileKey = clean;
-  // 서버에 저장
   if (storedFileName) {
     fetch('http://127.0.0.1:18790/set-filekey', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName: storedFileName, fileKey: clean })
     }).catch(function() {});
   }
-  updateDisplayUrl();
+  updateKeyBadge();
+}
+
+function tryClipboardDetect(showFeedback) {
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    if (showFeedback) showStatus('클립보드 접근 불가. URL을 직접 붙여넣어 주세요.', 'error');
+    return;
+  }
+  navigator.clipboard.readText()
+    .then(function(text) {
+      var key = extractFileKey(text);
+      if (key) {
+        storedFileKey = key;
+        if (storedFileName) {
+          fetch('http://127.0.0.1:18790/set-filekey', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: storedFileName, fileKey: key })
+          }).catch(function() {});
+        }
+        updateKeyBadge();
+        if (showFeedback) showStatus('✅ 파일 키 감지 완료! 다음부터 자동으로 불러와요.', 'success');
+      } else {
+        if (showFeedback) showStatus('클립보드에 Figma URL이 없어요. 브라우저에서 URL 복사 후 다시 시도해주세요.', 'error');
+      }
+    })
+    .catch(function() {
+      if (showFeedback) showStatus('클립보드 접근이 거부됐어요. URL을 직접 붙여넣어 주세요.', 'error');
+    });
 }
 
 function loadFilekeyFromServer(fileName) {
   fetch('http://127.0.0.1:18790/get-filekey?fileName=' + encodeURIComponent(fileName))
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (d.fileKey) applyFileKey(d.fileKey); })
-    .catch(function() {});
+    .then(function(d) {
+      if (d.fileKey) {
+        applyFileKey(d.fileKey);
+      } else {
+        updateKeyBadge();
+        tryClipboardDetect(false);
+      }
+    })
+    .catch(function() { updateKeyBadge(); });
 }
 
 function extractFileKey(val) {
@@ -134,43 +195,49 @@ function extractFileKey(val) {
   var m = val.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]{10,40})/);
   if (m) return m[1];
   var k = val.split(/[/?&# ]/)[0];
-  // 파일키는 보통 22자, 최대 40자로 제한 (오염된 긴 문자열 차단)
   return /^[a-zA-Z0-9]{10,40}$/.test(k) ? k : null;
 }
 
-function updateDisplayUrl() {
-  var dbg = document.getElementById('filekey-debug');
-  if (!storedFileKey) {
-    document.getElementById('file-url').textContent = '프레임·섹션을 선택하면 자동으로 입력돼요';
-    document.getElementById('url-section').classList.remove('has-url');
-    if (dbg) dbg.textContent = '파일키: 없음 (figma.fileKey null)';
-    return;
+function updateKeyBadge() {
+  var badge = document.getElementById('key-badge');
+  var setup = document.getElementById('filekey-setup');
+  // fileUrl은 항상 기본 URL만 — node-id는 code.js가 linkNodeId로 처리
+  fileUrl = storedFileKey ? 'https://www.figma.com/design/' + storedFileKey : '';
+  if (storedFileKey) {
+    badge.textContent = '🟢 ' + storedFileKey.substring(0, 6) + '…';
+    badge.className = 'key-badge key-ok';
+    if (!keySetupOpen) setup.style.display = 'none';
+  } else {
+    badge.textContent = '⚠ 키 없음';
+    badge.className = 'key-badge key-missing';
+    setup.style.display = 'block';
+    keySetupOpen = true;
   }
-  fileUrl = 'https://www.figma.com/design/' + storedFileKey;
-  var displayUrl = selectedId ? fileUrl + '?node-id=' + selectedId.replace(':', '-') : fileUrl;
-  document.getElementById('file-url').textContent = displayUrl;
-  document.getElementById('url-section').classList.add('has-url');
-  document.getElementById('url-saved').textContent = '✓ 자동 입력됨';
-  if (dbg) dbg.textContent = '파일키: ' + storedFileKey.substring(0, 8) + '...';
 }
 
 function saveFileKey() {
   var raw = document.getElementById('file-key-input').value.trim();
-  // 전체 URL 붙여넣기도 허용
-  var m = raw.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
-  var key = m ? m[1] : raw.replace(/[^a-zA-Z0-9]/g, '');
-  if (!key) { showStatus('파일 키를 확인해주세요', 'error'); return; }
+  var key = extractFileKey(raw);
+  if (!key) {
+    showStatus('올바른 Figma 디자인 파일 URL을 붙여넣어 주세요. (figma.com/design/... 형식)', 'error');
+    return;
+  }
   storedFileKey = key;
+  if (storedFileName) {
+    fetch('http://127.0.0.1:18790/set-filekey', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: storedFileName, fileKey: key })
+    }).catch(function() {});
+  }
   parent.postMessage({ pluginMessage: { type: 'save-filekey', fileKey: key } }, '*');
   document.getElementById('file-key-input').value = key;
-  document.getElementById('file-key-hint').textContent = '저장됨: ' + key;
-  document.getElementById('file-key-hint').style.color = '#059669';
-  updateDisplayUrl();
-  showStatus('파일 키 저장 완료! 이제 섹션 클릭 시 URL이 자동으로 바뀌어요', 'success');
+  keySetupOpen = false;
+  updateKeyBadge();
+  showStatus('파일 키 저장 완료!', 'success');
 }
+
 var selectedNotionId = null;
 
-// ── 노션 항목 로드 ──────────────────────────────────────────────
 function loadNotionEntries() {
   fetch('http://127.0.0.1:18790/notion-entries')
     .then(function(res) { return res.json(); })
@@ -179,12 +246,12 @@ function loadNotionEntries() {
       if (!data.ok) return;
       notionEntries = data.entries || [];
       var sel = document.getElementById('notion-select');
-      sel.innerHTML = '<option value="">-- 해당 없음 (노션 업데이트 안 함) --</option>';
+      sel.innerHTML = '<option value="">-- 해당 없음 --</option>';
       notionEntries.forEach(function(e) {
         var opt = document.createElement('option');
         opt.value = e.id;
         var meta = [e.team, e.deadline ? '마감 ' + e.deadline : ''].filter(Boolean).join(' · ');
-        opt.textContent = e.title + (meta ? '  (' + meta + ')' : '');
+        opt.textContent = e.title + (meta ? ' (' + meta + ')' : '');
         sel.appendChild(opt);
       });
     })
@@ -193,16 +260,16 @@ function loadNotionEntries() {
     });
 }
 
-// 노션 항목 선택 시 슬랙 스레드 자동 검색
 function onNotionSelect() {
   selectedNotionId = document.getElementById('notion-select').value || null;
+  var statusEl = document.getElementById('notion-thread-status');
   if (!selectedNotionId) {
-    document.getElementById('notion-thread-status').style.display = 'none';
+    statusEl.textContent = '';
+    document.getElementById('thread-url').value = '';
     return;
   }
-  var statusEl = document.getElementById('notion-thread-status');
-  statusEl.style.display = 'block';
-  statusEl.textContent = '🔍 슬랙 스레드 검색 중...';
+  statusEl.textContent = '🔍 검색 중…';
+  statusEl.style.color = '#aaa';
   document.getElementById('thread-url').value = '';
 
   fetch('http://127.0.0.1:18790/find-thread?pageId=' + encodeURIComponent(selectedNotionId))
@@ -210,19 +277,18 @@ function onNotionSelect() {
     .then(function(data) {
       if (data.threadUrl) {
         document.getElementById('thread-url').value = data.threadUrl;
-        statusEl.textContent = '✅ 스레드 자동 입력 완료';
+        statusEl.textContent = '✅ 자동 입력';
         statusEl.style.color = '#059669';
+        document.getElementById('broadcast-row').style.display = 'block';
       } else {
-        statusEl.textContent = '⚠️ 스레드 없음 (직접 입력 가능)';
+        statusEl.textContent = '⚠ 스레드 없음';
         statusEl.style.color = '#d97706';
+        document.getElementById('broadcast-row').style.display = 'none';
       }
     })
-    .catch(function() {
-      statusEl.textContent = '검색 실패';
-    });
+    .catch(function() { statusEl.textContent = '검색 실패'; });
 }
 
-// 채널 목록 로드
 function loadChannels() {
   fetch('http://127.0.0.1:18790/channels')
     .then(function(res) { return res.json(); })
@@ -230,28 +296,22 @@ function loadChannels() {
       if (!data.ok) throw new Error(data.error);
       var sel = document.getElementById('channel-select');
       sel.innerHTML = '';
-      for (var i = 0; i < data.channels.length; i++) {
-        var ch = data.channels[i];
+      data.channels.forEach(function(ch) {
         var opt = document.createElement('option');
         opt.value = ch.id;
         opt.textContent = '#' + ch.name;
         if (ch.id === 'C0A8WKD7X19') opt.selected = true;
         sel.appendChild(opt);
-      }
+      });
     });
 }
 
-
 function refresh() {
   var btn = document.getElementById('refresh-btn');
-  btn.textContent = '↻';
-  btn.style.color = '#18a0fb';
+  btn.textContent = '↻'; btn.style.color = '#18a0fb';
   loadNotionEntries();
   parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
-  setTimeout(function() {
-    btn.textContent = '↺';
-    btn.style.color = '#666';
-  }, 800);
+  setTimeout(function() { btn.textContent = '↺'; btn.style.color = '#666'; }, 800);
 }
 
 loadChannels();
@@ -263,14 +323,9 @@ window.onmessage = function(event) {
 
   if (msg.type === 'stored-filekey') {
     storedFileName = msg.fileName || null;
-    // clientStorage 값 시도 (오염 안 됐을 때만)
-    if (msg.fileKey && !storedFileKey) {
-      applyFileKey(msg.fileKey);
-    }
-    // 서버에서 파일키 조회 (figma.fileKey null 대비)
-    if (storedFileName && !storedFileKey) {
-      loadFilekeyFromServer(storedFileName);
-    }
+    if (msg.fileKey && !storedFileKey) applyFileKey(msg.fileKey);
+    if (storedFileName && !storedFileKey) loadFilekeyFromServer(storedFileName);
+    if (!storedFileKey) updateKeyBadge();
   }
 
   if (msg.type === 'no-selection') {
@@ -281,98 +336,60 @@ window.onmessage = function(event) {
   }
 
   if (msg.type === 'selection') {
-    // figma.fileKey가 유효하면 즉시 사용 (개발모드가 아닐 때 자동 획득)
     if (msg.fileKey) applyFileKey(msg.fileKey);
     currentItems = [];
-    
-    if (msg.sections && msg.sections.length > 0) {
-      for (var i = 0; i < msg.sections.length; i++) {
-        var sec = msg.sections[i];
-        currentItems.push({
-          id: sec.id,
-          name: sec.name,
-          type: 'section',
-          children: sec.children
-        });
-      }
-    }
-    
-    if (msg.frames && msg.frames.length > 0) {
-      for (var j = 0; j < msg.frames.length; j++) {
-        var frame = msg.frames[j];
-        currentItems.push({
-          id: frame.id,
-          name: frame.name,
-          type: 'frame'
-        });
-      }
-    }
-    
+    (msg.sections || []).forEach(function(sec) {
+      currentItems.push({ id: sec.id, name: sec.name, type: 'section', children: sec.children });
+    });
+    (msg.frames || []).forEach(function(frame) {
+      currentItems.push({ id: frame.id, name: frame.name, type: 'frame' });
+    });
     updateItemSelect();
-    
     if (currentItems.length > 0) {
-      var count = msg.sections.length + msg.frames.length;
-      showStatus(count + '개 항목 선택됨', 'info');
+      showStatus((msg.sections.length + msg.frames.length) + '개 항목 선택됨', 'info');
     }
   }
 
-  if (msg.type === 'export-done') {
-    uploadToSlack(msg.frames, msg.nodeUrl, msg.displayName, msg.threadUrl);
-  }
-
-  if (msg.type === 'error') {
-    showStatus(msg.message, 'error');
-    setLoading(false);
-  }
+  if (msg.type === 'export-done') uploadToSlack(msg.frames, msg.nodeUrl, msg.displayName, msg.threadUrl);
+  if (msg.type === 'error') { showStatus(msg.message, 'error'); setLoading(false); }
 };
 
 function updateItemSelect() {
   var sel = document.getElementById('item-select');
   sel.innerHTML = '<option value="">-- 선택해주세요 --</option>';
-  
-  for (var i = 0; i < currentItems.length; i++) {
-    var item = currentItems[i];
+  currentItems.forEach(function(item) {
     var opt = document.createElement('option');
     opt.value = item.id;
-    
-    if (item.type === 'section') {
-      opt.textContent = '📦 ' + item.name + ' (' + item.children.length + '개)';
-    } else {
-      opt.textContent = '🖼️ ' + item.name;
-    }
-    
+    opt.textContent = item.type === 'section'
+      ? '📦 ' + item.name + ' (' + item.children.length + '개)'
+      : '🖼️ ' + item.name;
     sel.appendChild(opt);
-  }
-  
+  });
   if (currentItems.length > 0) {
     sel.value = currentItems[0].id;
     selectedId = currentItems[0].id;
     updateFramePreview();
-    updateDisplayUrl();
+    updateKeyBadge();
   } else {
     document.getElementById('frame-preview').style.display = 'none';
   }
 }
 
+
 document.getElementById('item-select').onchange = function() {
   selectedId = this.value;
   updateFramePreview();
-  updateDisplayUrl();
+  updateKeyBadge();
 };
 
 function updateFramePreview() {
   var item = currentItems.find(function(i) { return i.id === selectedId; });
   var preview = document.getElementById('frame-preview');
   var list = document.getElementById('frame-list');
-  
   if (item && item.type === 'section') {
-    list.innerHTML = '';
-    for (var i = 0; i < item.children.length; i++) {
-      var div = document.createElement('div');
-      div.className = 'frame-item';
-      div.textContent = item.children[i].name;
-      list.appendChild(div);
-    }
+    list.innerHTML = item.children.map(function(c) {
+      return '<div class="frame-item">' + c.name + '</div>';
+    }).join('');
     preview.style.display = 'block';
   } else {
     preview.style.display = 'none';
@@ -393,47 +410,28 @@ function setLoading(loading) {
 }
 
 function share() {
-  if (!selectedId) {
-    showStatus('공유할 항목을 선택해주세요', 'error');
-    return;
-  }
-
+  if (!selectedId) { showStatus('공유할 항목을 선택해주세요', 'error'); return; }
   var item = currentItems.find(function(i) { return i.id === selectedId; });
-  if (!item) {
-    showStatus('선택된 항목을 찾을 수 없습니다', 'error');
-    return;
-  }
-
-  if (!fileUrl) {
-    showStatus('피그마 파일 키를 먼저 입력하고 저장해주세요 (위 파일 키 입력란)', 'error');
-    return;
-  }
+  if (!item) { showStatus('선택된 항목을 찾을 수 없습니다', 'error'); return; }
+  if (!fileUrl) { showStatus('파일 키를 먼저 설정해주세요 (상단 ⚠ 키 없음 클릭)', 'error'); return; }
 
   setLoading(true);
-
   var threadUrl = document.getElementById('thread-url').value.trim();
   var nodeIds = item.type === 'section'
     ? item.children.map(function(c) { return c.id; })
     : [selectedId];
-  var exportCount = nodeIds.length;
-  showStatus('프레임 추출 중' + (exportCount > 1 ? '... (' + exportCount + '개)' : '...'), 'info');
+  showStatus('프레임 추출 중' + (nodeIds.length > 1 ? ' (' + nodeIds.length + '개)...' : '...'), 'info');
 
-  // 피그마 REST API로 실제 프레임 ID 조회 (섹션 → 내부 프레임)
   function doExport(linkId) {
     parent.postMessage({ pluginMessage: {
-      type: 'export-frames',
-      nodeIds: nodeIds,
-      linkNodeId: linkId,
-      fileUrl: fileUrl,
-      displayName: item.name,
-      threadUrl: threadUrl
+      type: 'export-frames', nodeIds: nodeIds, linkNodeId: linkId,
+      fileUrl: fileUrl, displayName: item.name, threadUrl: threadUrl
     } }, '*');
   }
 
   if (storedFileKey && selectedId) {
     fetch('http://127.0.0.1:18790/figma-node-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileKey: storedFileKey, nodeId: selectedId })
     })
     .then(function(r) { return r.json(); })
@@ -447,34 +445,21 @@ function share() {
 function uploadToSlack(frames, nodeUrl, displayName, threadUrl) {
   var channelId = document.getElementById('channel-select').value;
   var message = document.getElementById('message').value.trim();
-
   showStatus('슬랙에 업로드 중...', 'info');
 
   var uploadData = {
-    frames: [],
-    channelId: channelId,
-    message: message,
-    figmaUrl: nodeUrl,
-    frameName: displayName,
-    threadUrl: threadUrl
+    frames: frames.map(function(f) {
+      var binary = '';
+      var uint8 = new Uint8Array(f.bytes);
+      for (var j = 0; j < uint8.length; j++) binary += String.fromCharCode(uint8[j]);
+      return { imageBase64: btoa(binary), filename: f.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.png', nodeId: f.nodeId };
+    }),
+    channelId: channelId, message: message,
+    figmaUrl: nodeUrl, frameName: displayName, threadUrl: threadUrl
   };
 
-  for (var i = 0; i < frames.length; i++) {
-    var binary = '';
-    var uint8 = new Uint8Array(frames[i].bytes);
-    for (var j = 0; j < uint8.length; j++) {
-      binary += String.fromCharCode(uint8[j]);
-    }
-    var filename = frames[i].name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.png';
-    uploadData.frames.push({
-      imageBase64: btoa(binary),
-      filename: filename
-    });
-  }
-
   fetch('http://127.0.0.1:18790/share', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(uploadData)
   })
   .then(function(res) { return res.json(); })
@@ -482,32 +467,18 @@ function uploadToSlack(frames, nodeUrl, displayName, threadUrl) {
     if (!data.ok) throw new Error(data.error);
     showStatus('✅ "' + displayName + '" 공유 완료!', 'success');
     document.getElementById('message').value = '작업 완료되어 전달드립니다 :듀가나디_장미:';
-
-    // 노션 항목이 선택된 경우 자동 업데이트
     if (selectedNotionId && nodeUrl) {
       var nodeIds = frames.map(function(f) { return f.nodeId; });
       fetch('http://127.0.0.1:18790/notion-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pageId: selectedNotionId,
-          figmaUrl: nodeUrl,
-          fileKey: storedFileKey || null,
-          nodeIds: nodeIds
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: selectedNotionId, figmaUrl: nodeUrl, fileKey: storedFileKey || null, nodeIds: nodeIds })
       })
       .then(function(r) { return r.json(); })
-      .then(function(r) {
-        if (r.ok) showStatus('✅ "' + displayName + '" 공유 + 노션 완료 처리!', 'success');
-      });
+      .then(function(r) { if (r.ok) showStatus('✅ "' + displayName + '" 공유 + 노션 완료 처리!', 'success'); });
     }
   })
-  .catch(function(err) {
-    showStatus('오류: ' + err.message, 'error');
-  })
-  .finally(function() {
-    setLoading(false);
-  });
+  .catch(function(err) { showStatus('오류: ' + err.message, 'error'); })
+  .finally(function() { setLoading(false); });
 }
 </script>
 </body>
